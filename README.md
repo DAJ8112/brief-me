@@ -8,13 +8,14 @@ It runs locally on your subscription — **no API key, no Gmail OAuth, ~$0/month
 ## How it works
 
 ```
-launchd (~7:05 AM, or on next wake if the Mac was asleep)
-   └─ generate_brief.py
-        ├─ claude -p  (your subscription + your connected Gmail connector)
-        │     → JSON: action_items[], rest[], counts
-        ├─ writes ~/Library/Caches/brief-me/today.json   (overwritten daily; no history)
-        ├─ macOS notification: "📬 Morning Brief — 2 action items • 8 others"
-        └─ refreshes the SwiftBar menu bar
+launchd (7:05 AM + every 30 min; a missed interval fires on wake)
+   └─ run.sh  (wrapper: sets PATH in-shell so `claude` resolves under launchd)
+        └─ generate_brief.py --if-needed   (generates at most once per day)
+             ├─ claude -p  (your subscription + your connected Gmail connector)
+             │     → JSON: action_items[], rest[], counts
+             ├─ writes ~/Library/Caches/brief-me/today.json   (overwritten daily; no history)
+             ├─ macOS notification: "📬 Morning Brief — 2 action items • 8 others"
+             └─ refreshes the SwiftBar menu bar (relaunches it if you quit it)
 
 SwiftBar plugin (swiftbar/briefme.5m.py)  → renders the menu bar
    📬 2   ▸  ⚡ Action needed   (click an item → opens that email in Gmail)
@@ -25,6 +26,12 @@ SwiftBar plugin (swiftbar/briefme.5m.py)  → renders the menu bar
 The menu-bar surface needs the brief stored *somewhere* to render on each click, so
 there is exactly **one cache file** (`~/Library/Caches/brief-me/today.json`) that is
 **overwritten every morning** — it never builds up a history.
+
+**Catch-up / "open the lid late":** because the Mac is usually asleep at 7:05, the job also
+runs on a 30-minute interval, and launchd fires a missed interval on wake. So whenever you open
+the lid, if today's brief isn't done yet (and it's past 7 AM) it generates then. `--if-needed`
+guarantees only one real run (and one notification) per day; a transient post-wake network blip
+is retried a few times before giving up.
 
 ## Source vs. runtime (important)
 
@@ -90,8 +97,9 @@ entirely, quit SwiftBar and remove it from System Settings → General → Login
   `~/Library/Application Support/brief-me/swiftbar` (SwiftBar → Preferences). Plugins must be
   executable (`install.sh` handles this). If you quit SwiftBar, reopen it (or log out/in, since
   it's a login item).
-- **Icon stuck on 📭** — no fresh brief today; run `generate_brief.py` by hand and read
-  `/tmp/briefme.log`. A common cause under launchd is a stale `claude`/node path — update the
-  paths at the top of `generate_brief.py` and in the plist's `PATH`.
+- **Icon stuck on 📭** — no fresh brief today; read `/tmp/briefme.log`. If it shows
+  `No such file or directory: 'claude'`, `claude` moved (e.g. a Node upgrade) — **re-run
+  `./install.sh`**, which re-discovers `claude` and regenerates the `run.sh` wrapper's PATH.
+  To force a brief now: `/usr/bin/python3 ~/Library/Application\ Support/brief-me/generate_brief.py`.
 - **Gmail errors** — re-check `claude mcp list`; reconnect the Gmail connector in Claude if it
   shows "Needs authentication".

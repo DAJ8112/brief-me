@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 # --- configuration ---------------------------------------------------------
 HOME = os.path.expanduser("~")
@@ -83,7 +84,7 @@ def build_prompt(tokens):
     return prompt
 
 
-def run_claude(prompt):
+def _invoke_claude_once(prompt):
     cmd = [CLAUDE, "-p", "--output-format", "json", "--allowedTools", ALLOWED_TOOLS]
     if MODEL:
         cmd += ["--model", MODEL]
@@ -91,11 +92,27 @@ def run_claude(prompt):
         cmd, input=prompt, capture_output=True, text=True, timeout=TIMEOUT_SECONDS
     )
     if proc.returncode != 0:
-        raise RuntimeError(f"claude exited {proc.returncode}: {proc.stderr[:500]}")
+        raise RuntimeError(f"claude exited {proc.returncode}: {(proc.stderr or proc.stdout)[:500]}")
     envelope = json.loads(proc.stdout)
     if envelope.get("is_error"):
         raise RuntimeError(f"claude reported error: {str(envelope.get('result'))[:500]}")
     return envelope.get("result", "")
+
+
+def run_claude(prompt):
+    # Retry transient failures (e.g. Wi-Fi not reconnected yet right after wake).
+    backoffs = [10, 30]  # 3 attempts total
+    for attempt in range(len(backoffs) + 1):
+        try:
+            return _invoke_claude_once(prompt)
+        except Exception as exc:
+            if attempt == len(backoffs):
+                raise
+            wait = backoffs[attempt]
+            sys.stderr.write(
+                f"[brief-me] attempt {attempt + 1} failed ({exc}); retrying in {wait}s\n"
+            )
+            time.sleep(wait)
 
 
 def extract_json(text):
@@ -133,7 +150,26 @@ def write_cache(brief):
     os.replace(tmp, CACHE)  # atomic; never leaves a half-written cache
 
 
+def _generated_today():
+    try:
+        with open(CACHE) as f:
+            stamp = str(json.load(f).get("generated_at", ""))[:10]
+        return stamp == datetime.date.today().isoformat()
+    except Exception:
+        return False
+
+
 def main():
+    # `--if-needed` (used by the LaunchAgent): generate at most once per day, and
+    # only in/after the morning. A manual run (no flag) always generates.
+    if "--if-needed" in sys.argv:
+        if _generated_today():
+            print("[brief-me] today's brief already generated; skipping")
+            return
+        if datetime.datetime.now().hour < 7:
+            print("[brief-me] before 07:00 local; skipping until morning")
+            return
+
     tokens, yest = date_tokens()
     result = run_claude(build_prompt(tokens))
     brief = extract_json(result)

@@ -45,7 +45,7 @@ else
     echo "    (couldn't set login item automatically — enable in SwiftBar → Preferences → Launch at Login)"
 fi
 
-# 3. Generate + (re)load the LaunchAgent (~7:05 AM, catches up on wake) ---
+# 3. Generate the wrapper + plist, then (re)load the LaunchAgent ---------
 mkdir -p "$HOME/Library/LaunchAgents"
 CLAUDE_BIN="$(command -v claude || true)"
 if [ -z "$CLAUDE_BIN" ]; then
@@ -53,8 +53,19 @@ if [ -z "$CLAUDE_BIN" ]; then
     exit 1
 fi
 NODE_BIN="$(dirname "$CLAUDE_BIN")"
-sed -e "s|__PYTHON__|/usr/bin/python3|g" \
-    -e "s|__HOME__|$HOME|g" \
+
+# Wrapper sets PATH in-shell — launchd does not reliably apply the plist's
+# EnvironmentVariables PATH, so generate_brief.py couldn't resolve `claude`.
+# --if-needed makes catch-up runs no-ops once the day's brief exists.
+cat > "$RUNTIME_DIR/run.sh" <<EOF
+#!/bin/bash
+export PATH="$NODE_BIN:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+exec /usr/bin/python3 "$RUNTIME_DIR/generate_brief.py" --if-needed
+EOF
+chmod +x "$RUNTIME_DIR/run.sh"
+echo "    wrote wrapper run.sh (PATH includes $NODE_BIN)."
+
+sed -e "s|__HOME__|$HOME|g" \
     -e "s|__RUNTIME_DIR__|$RUNTIME_DIR|g" \
     -e "s|__NODE_BIN__|$NODE_BIN|g" \
     "$TEMPLATE" > "$PLIST_DST"

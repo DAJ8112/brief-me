@@ -22,15 +22,24 @@ to get wrong.
 ## The pipeline (requires reading multiple files to see)
 
 ```
-launchd (com.briefme.daily, ~7:05 AM or next wake)
-  → generate_brief.py
-      • claude -p --output-format json --allowedTools mcp__claude_ai_Gmail__search_threads,...
-        (runs on the user's Claude subscription + the connected Gmail MCP connector — NO API key)
-      • parses JSON out of the result (model may prepend prose; extract first {…last })
-      • writes ~/Library/Caches/brief-me/today.json   (single file, overwritten daily, no history)
-      • osascript notification + `open swiftbar://refreshplugin?name=briefme`
+launchd (com.briefme.daily; 7:05 AM + StartInterval 1800s; a missed interval fires on wake)
+  → run.sh  (generated wrapper: exports PATH, then runs generate_brief.py --if-needed)
+      → generate_brief.py
+          • --if-needed: skip if already generated today, or before 07:00 (≤1 real run/day)
+          • claude -p --output-format json --allowedTools mcp__claude_ai_Gmail__search_threads,...
+            (runs on the user's Claude subscription + the connected Gmail MCP connector — NO API key)
+          • run_claude() retries transient failures (post-wake Wi-Fi lag) ~3x with backoff
+          • parses JSON out of the result (model may prepend prose; extract first {…last })
+          • writes ~/Library/Caches/brief-me/today.json   (single file, overwritten daily, no history)
+          • osascript notification + `open swiftbar://refreshplugin?name=briefme`
   → swiftbar/briefme.5m.py  reads today.json and renders the menu bar
 ```
+
+**Critical launchd gotcha:** launchd does NOT reliably apply the plist's `EnvironmentVariables`
+PATH, so a job that resolves `claude` via `shutil.which` (PATH-dependent) fails with
+`No such file or directory: 'claude'`. That's why the LaunchAgent runs through **`run.sh`**,
+which `export`s PATH in-shell first. `install.sh` generates `run.sh` with the install-time
+`claude` bin dir. If `claude` moves (Node upgrade), re-run `./install.sh`.
 
 `today.json` is the **contract** between the writer (`generate_brief.py`) and the reader
 (`swiftbar/briefme.5m.py`): keys `date`, `action_items[]` (`title`/`sender`/`gmail_url`),

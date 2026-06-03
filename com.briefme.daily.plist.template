@@ -9,10 +9,12 @@
 
     <!-- Runs from ~/Library/Application Support (NOT ~/Documents): macOS TCC
          blocks launchd background jobs from reading Documents/Desktop/Downloads. -->
+    <!-- Runs via a generated wrapper (run.sh) that sets PATH in-shell, because
+         launchd does not reliably apply the EnvironmentVariables PATH below. -->
     <key>ProgramArguments</key>
     <array>
-        <string>__PYTHON__</string>
-        <string>__RUNTIME_DIR__/generate_brief.py</string>
+        <string>/bin/bash</string>
+        <string>__RUNTIME_DIR__/run.sh</string>
     </array>
 
     <!-- ~7 AM local. If the Mac is asleep/off at this time, launchd runs the
@@ -24,6 +26,12 @@
         <key>Minute</key>
         <integer>5</integer>
     </dict>
+
+    <!-- Catch-up: re-check periodically. launchd fires a missed interval on wake,
+         so opening the lid triggers a run; the run.sh wrapper passes --if-needed,
+         which keeps it to one real generation (and one notification) per day. -->
+    <key>StartInterval</key>
+    <integer>1800</integer>
 
     <!-- launchd gives jobs a minimal environment; set what claude/node need. -->
     <key>EnvironmentVariables</key>
