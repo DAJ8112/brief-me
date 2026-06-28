@@ -21,17 +21,27 @@ import os
 import sys
 
 CACHE = os.path.expanduser("~/Library/Caches/brief-me/today.json")
+ERROR_FILE = os.path.expanduser("~/Library/Caches/brief-me/last_error.json")
 SELF = os.path.realpath(__file__)
 PY = "/usr/bin/python3"
 
 ACTION_COLOR = "#e0820a"  # amber — legible in light & dark
 REST_COLOR = "#3b82f6"    # blue
 MUTED = "#9aa0a6"         # gray
+WARN_COLOR = "#d93025"    # red — a failed run
 
 
 def load():
     try:
         with open(CACHE) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def load_error():
+    try:
+        with open(ERROR_FILE) as f:
             return json.load(f)
     except Exception:
         return None
@@ -61,13 +71,21 @@ def line(text, **params):
 
 def render():
     data = load()
+    err = load_error()
     today = datetime.date.today().isoformat()
+    err_today = bool(err) and str(err.get("at", ""))[:10] == today
 
     if not data:
-        print("\U0001F4ED")  # 📭
-        print("---")
-        line("No brief yet", color=MUTED)
-        line("Runs automatically around 7 AM", color=MUTED, size=11)
+        if err_today:
+            print("⚠️")  # ⚠️ — today's run failed and there's no prior brief
+            print("---")
+            line("Today's brief failed", color=WARN_COLOR)
+            line("See /tmp/briefme.log", color=MUTED, size=11)
+        else:
+            print("\U0001F4ED")  # 📭
+            print("---")
+            line("No brief yet", color=MUTED)
+            line("Runs automatically around 7 AM", color=MUTED, size=11)
         print("---")
         line("↻ Refresh", refresh="true")
         return
@@ -83,13 +101,19 @@ def render():
     # --- menu bar title ---
     if fresh and not read:
         print(f"\U0001F4EC {n_action}" if n_action else "\U0001F4EC")  # 📬
+    elif not fresh and err_today:
+        print("⚠️")  # ⚠️ — today's run failed; the last good brief is shown below
     else:
         print("\U0001F4ED")  # 📭
 
     print("---")
     line(f"Morning Brief — {data.get('date', '')}", size=14)
     if not fresh and gen_date:
-        line(f"(from {gen_date}; today's run hasn't happened yet)", color=MUTED, size=11)
+        if err_today:
+            line(f"(showing {gen_date}; today's run failed — see /tmp/briefme.log)",
+                 color=WARN_COLOR, size=11)
+        else:
+            line(f"(from {gen_date}; today's run hasn't happened yet)", color=MUTED, size=11)
     print("---")
 
     # --- action needed ---

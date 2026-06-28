@@ -43,8 +43,13 @@ which `export`s PATH in-shell first. `install.sh` generates `run.sh` with the in
 
 `today.json` is the **contract** between the writer (`generate_brief.py`) and the reader
 (`swiftbar/briefme.5m.py`): keys `date`, `action_items[]` (`title`/`sender`/`gmail_url`),
-`rest[]` (`summary`), `counts`, `generated_at`, `read`. Change the shape in one place → change it
-in both.
+`rest[]` (`summary`, optional `gmail_url` for single-message lines), `counts`, `generated_at`,
+`read`. Change the shape in one place → change it in both.
+
+A second, smaller contract is the sidecar `~/Library/Caches/brief-me/last_error.json`
+(`{at, message}`): the generator writes it in its top-level `except` and deletes it
+(`clear_error()`) after a successful run, so the plugin can show a distinct `⚠️` "today's run
+failed" state (vs. `📭` "hasn't run yet") while still rendering the last good brief.
 
 Key design choices baked into the code:
 - **Subscription, not API.** Summarization is `claude -p` (headless Claude Code) using

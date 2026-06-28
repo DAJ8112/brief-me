@@ -31,6 +31,10 @@ TIMEOUT_SECONDS = 300
 
 CACHE_DIR = os.path.join(HOME, "Library", "Caches", "brief-me")
 CACHE = os.path.join(CACHE_DIR, "today.json")
+# Sidecar marker written when a run fails, removed on the next success. Lets the
+# menu bar distinguish "today's run failed" from "today's run hasn't happened yet"
+# without clobbering the last good brief in today.json.
+ERROR_FILE = os.path.join(CACHE_DIR, "last_error.json")
 PLUGIN_NAME = "briefme"  # SwiftBar plugin base name (briefme.5m.py)
 
 # Date tokens are substituted by str.replace (NOT .format) so the JSON braces
@@ -52,7 +56,8 @@ Your ENTIRE response must be a single JSON object. Do not write anything before 
      "gmail_url": "https://mail.google.com/mail/u/0/#all/<messageId>"}
   ],
   "rest": [
-    {"summary": "<one concise line; group similar items, e.g. '3 job-board digests (ZipRecruiter, Adzuna, Alignerr)'>"}
+    {"summary": "<one concise line; group similar items, e.g. '3 job-board digests (ZipRecruiter, Adzuna, Alignerr)'>",
+     "gmail_url": "<optional: #all/<messageId> deep link if this line is ONE message; omit for grouped lines>"}
   ],
   "counts": {"action": 0, "rest": 0, "total": 0}
 }
@@ -61,6 +66,7 @@ Rules:
 - Put genuinely actionable/time-sensitive items in action_items, most urgent first. Be specific (names, deadlines, amounts).
 - Collapse promotions, newsletters, and routine job-board/application notices into a few concise lines under "rest".
 - gmail_url: use a messageId from the thread's messages (the #all/<messageId> deep link opens that message in Gmail).
+- For a "rest" line that summarizes a single message, you may include a gmail_url (same #all/<messageId> format) so it's clickable; omit gmail_url for grouped lines (e.g. "3 job-board digests").
 - counts.action = number of action_items, counts.rest = number of rest lines, counts.total = action + rest.
 - If yesterday's inbox was empty, return empty arrays and zero counts.
 """
@@ -150,6 +156,26 @@ def write_cache(brief):
     os.replace(tmp, CACHE)  # atomic; never leaves a half-written cache
 
 
+def write_error(message):
+    """Record that today's run failed, for the menu bar to surface."""
+    os.makedirs(CACHE_DIR, exist_ok=True)  # may fire before any cache exists
+    marker = {"at": datetime.datetime.now().astimezone().isoformat(), "message": str(message)[:500]}
+    tmp = ERROR_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(marker, f, indent=2)
+    os.replace(tmp, ERROR_FILE)
+
+
+def clear_error():
+    """Drop a stale failure marker after a successful run."""
+    try:
+        os.remove(ERROR_FILE)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
 def _generated_today():
     try:
         with open(CACHE) as f:
@@ -185,6 +211,7 @@ def main():
     brief["read"] = False
 
     write_cache(brief)
+    clear_error()  # a successful run clears any stale failure marker
 
     others = f"{n_rest} other{'s' if n_rest != 1 else ''}"
     if n_action > 0:
@@ -201,6 +228,10 @@ if __name__ == "__main__":
         main()
     except Exception as exc:  # surface failures to the menu bar + log
         sys.stderr.write(f"[brief-me] ERROR: {exc}\n")
+        try:
+            write_error(exc)  # let the menu bar show a distinct "failed" state
+        except Exception:
+            pass
         try:
             notify("brief-me failed", str(exc)[:180])
         except Exception:

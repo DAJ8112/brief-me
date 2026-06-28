@@ -5,6 +5,8 @@ items first (replies, decisions, deadlines), everything else summarized undernea
 
 It runs locally on your subscription — **no API key, no Gmail OAuth, ~$0/month.**
 
+![brief-me menu bar](docs/screenshot.png)
+
 ## How it works
 
 ```
@@ -97,9 +99,16 @@ entirely, quit SwiftBar and remove it from System Settings → General → Login
   `~/Library/Application Support/brief-me/swiftbar` (SwiftBar → Preferences). Plugins must be
   executable (`install.sh` handles this). If you quit SwiftBar, reopen it (or log out/in, since
   it's a login item).
+- **⚠️ in the menu bar** — today's generation *errored* (distinct from 📭, which means it
+  simply hasn't run yet). Read `/tmp/briefme.log`; the previous day's brief is still shown
+  underneath. The next successful run clears the warning.
 - **Icon stuck on 📭** — no fresh brief today; read `/tmp/briefme.log`. If it shows
   `No such file or directory: 'claude'`, `claude` moved (e.g. a Node upgrade) — **re-run
   `./install.sh`**, which re-discovers `claude` and regenerates the `run.sh` wrapper's PATH.
   To force a brief now: `/usr/bin/python3 ~/Library/Application\ Support/brief-me/generate_brief.py`.
 - **Gmail errors** — re-check `claude mcp list`; reconnect the Gmail connector in Claude if it
   shows "Needs authentication".
+
+## License
+
+MIT — see [LICENSE](LICENSE).
