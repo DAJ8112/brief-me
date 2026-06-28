@@ -64,6 +64,7 @@ Key design choices baked into the code:
 
 ```bash
 ./install.sh                                          # deploy/redeploy + (re)load agent + run once
+./uninstall.sh                                        # remove everything install.sh set up (keeps the SwiftBar app)
 /usr/bin/python3 generate_brief.py                    # run the generator by hand (writes the cache)
 /usr/bin/python3 swiftbar/briefme.5m.py               # print the menu-bar render (debug the plugin)
 /usr/bin/python3 swiftbar/briefme.5m.py --mark-read   # flip the read flag in the cache

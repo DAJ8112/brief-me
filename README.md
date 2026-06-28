@@ -73,6 +73,7 @@ and runs the brief once. Look for 📬 / 📭 in the menu bar.
 | See what went wrong | `cat /tmp/briefme.log` |
 | Pause it | `launchctl bootout gui/$(id -u)/com.briefme.daily` and quit SwiftBar |
 | Resume it | re-run `./install.sh` |
+| Remove it completely | `./uninstall.sh` (keeps the SwiftBar app) |
 
 ## Customize
 
@@ -90,8 +91,9 @@ and runs the brief once. Look for 📬 / 📭 in the menu bar.
 
 SwiftBar only *draws* the menu bar; it isn't the brain. The brief still generates and notifies
 every morning even if SwiftBar is quit — you just won't have an icon to click until you reopen
-it. `install.sh` sets SwiftBar to **launch at login**, so it's there after reboots. To stop it
-entirely, quit SwiftBar and remove it from System Settings → General → Login Items.
+it. `install.sh` sets SwiftBar to **launch at login**, so it's there after reboots. To remove
+brief-me entirely, run **`./uninstall.sh`** (it unloads the agent and deletes the runtime,
+cache, log, and SwiftBar login item, but leaves the SwiftBar app itself installed).
 
 ## Troubleshooting
 
